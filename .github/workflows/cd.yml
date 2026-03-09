@@ -7,7 +7,7 @@ on:
 env:
   AZURE_CONTAINER_REGISTRY: ${{ vars.ACR_LOGIN_SERVER }}
   IMAGE_NAME: eventflow-payment-service
-  CONTAINER_APP_NAME: eventflow-payment-service
+  CONTAINER_APP_NAME: ef-payment-team1
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
 
 jobs:
