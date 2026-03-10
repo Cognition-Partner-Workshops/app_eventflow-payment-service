@@ -5,7 +5,7 @@ to display amounts and validates the payment.
 
 Currencies have different decimal places ("minor unit exponents"):
 - Most currencies (USD, EUR, GBP) have 2 decimal places (cents)
-- Zero-decimal currencies (JPY, KRW) have 0 decimal places
+- Zero-decimal currencies (JPY, KRW, VND, etc.) have 0 decimal places
 - Some currencies (BHD, KWD) have 3 decimal places (fils)
 
 The conversion must use the correct exponent for each currency.
@@ -27,6 +27,19 @@ CURRENCY_DECIMAL_PLACES: dict[str, int] = {
     "GBP": 2,
     "JPY": 0,
     "KRW": 0,
+    "VND": 0,
+    "CLP": 0,
+    "PYG": 0,
+    "UGX": 0,
+    "RWF": 0,
+    "DJF": 0,
+    "GNF": 0,
+    "XOF": 0,
+    "XAF": 0,
+    "XPF": 0,
+    "KMF": 0,
+    "MGA": 0,
+    "BIF": 0,
     "CHF": 2,
     "CAD": 2,
     "AUD": 2,

@@ -53,7 +53,7 @@ def _process_message(message_body: str) -> None:
         logger.exception("Failed to parse message body as JSON")
     except ValueError:
         logger.exception(
-            "Payment processing failed — unhandled validation error"
+            "Payment processing failed — validation error"
         )
         raise
     except Exception:
