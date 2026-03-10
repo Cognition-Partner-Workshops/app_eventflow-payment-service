@@ -1,9 +1,4 @@
-"""Tests for the payment processor.
-
-NOTE: These tests only cover USD and EUR currencies.
-The JPY/KRW zero-decimal currency bug is NOT covered by these tests,
-which is why it passes CI but fails in production.
-"""
+"""Tests for the payment processor."""
 
 from app.models import OrderEventData, PaymentStatus
 from app.processor import convert_to_display_amount, process_order_payment
@@ -28,6 +23,14 @@ class TestConvertToDisplayAmount:
         """Zero amount should convert to zero."""
         assert convert_to_display_amount(0, "USD") == 0.0
 
+    def test_convert_jpy_amount(self):
+        """JPY is a zero-decimal currency; amount should not be divided by 100."""
+        assert convert_to_display_amount(12800, "JPY") == 12800.0
+
+    def test_convert_krw_amount(self):
+        """KRW is a zero-decimal currency; amount should not be divided by 100."""
+        assert convert_to_display_amount(150000, "KRW") == 150000.0
+
 
 class TestProcessOrderPayment:
     """Tests for end-to-end payment processing."""
@@ -51,6 +54,54 @@ class TestProcessOrderPayment:
         assert payment.currency == "EUR"
         assert payment.amount_minor == 8999
         assert payment.amount_display == 89.99
+
+    def test_process_jpy_order(self):
+        """JPY order should be processed successfully with correct display amount."""
+        event_data = OrderEventData(
+            order_id="order-jpy-001",
+            customer_id="cust-jp",
+            currency="JPY",
+            amount=12800,
+            items=[
+                {
+                    "product_id": "prod-mech-kb",
+                    "name": "Mechanical Keyboard",
+                    "quantity": 1,
+                    "unit_price": 12800,
+                }
+            ],
+        )
+        payment = process_order_payment(event_data)
+
+        assert payment.status == PaymentStatus.COMPLETED
+        assert payment.order_id == "order-jpy-001"
+        assert payment.currency == "JPY"
+        assert payment.amount_minor == 12800
+        assert payment.amount_display == 12800.0
+
+    def test_process_krw_order(self):
+        """KRW order should be processed successfully with correct display amount."""
+        event_data = OrderEventData(
+            order_id="order-krw-001",
+            customer_id="cust-kr",
+            currency="KRW",
+            amount=150000,
+            items=[
+                {
+                    "product_id": "prod-monitor",
+                    "name": "Monitor",
+                    "quantity": 1,
+                    "unit_price": 150000,
+                }
+            ],
+        )
+        payment = process_order_payment(event_data)
+
+        assert payment.status == PaymentStatus.COMPLETED
+        assert payment.order_id == "order-krw-001"
+        assert payment.currency == "KRW"
+        assert payment.amount_minor == 150000
+        assert payment.amount_display == 150000.0
 
     def test_process_large_usd_order(self):
         """Large USD orders should process without issues."""
