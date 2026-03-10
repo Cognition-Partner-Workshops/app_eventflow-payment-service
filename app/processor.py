@@ -52,7 +52,7 @@ def convert_to_display_amount(amount_minor: int, currency: str) -> float:
         currency: ISO 4217 currency code.
 
     Returns:
-        The amount in display format (e.g., dollars).
+        The amount in display format (e.g., dollars for USD, yen for JPY).
     """
     if currency in ZERO_DECIMAL_CURRENCIES:
         return float(amount_minor)
