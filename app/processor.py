@@ -36,8 +36,12 @@ class GatewayResponse:
     error: str | None = None
 
 
-# Currencies that use zero decimal places (amount is already in the base unit)
-ZERO_DECIMAL_CURRENCIES: set[str] = {"JPY", "KRW"}
+# Zero-decimal currencies where the minor unit equals the base unit
+ZERO_DECIMAL_CURRENCIES: set[str] = {
+    "JPY", "KRW", "VND", "CLP", "PYG",
+    "UGX", "RWF", "DJF", "GNF", "XOF",
+    "XAF", "XPF", "KMF", "MGA", "BIF",
+}
 
 
 def convert_to_display_amount(amount_minor: int, currency: str) -> float:
