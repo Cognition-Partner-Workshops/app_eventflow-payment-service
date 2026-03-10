@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Minimum transaction thresholds in display currency units
 # These represent the minimum billable amount for each currency
+ZERO_DECIMAL_CURRENCIES: set[str] = {"JPY", "KRW"}
+
 MINIMUM_TRANSACTION_THRESHOLDS: dict[str, float] = {
     "USD": 0.50,
     "EUR": 0.50,
@@ -63,7 +65,8 @@ def convert_to_display_amount(amount_minor: int, currency: str) -> float:
     currencies like JPY where 1 yen IS the smallest unit.
     The correct implementation would check the currency's decimal places.
     """
-    # BUG: This assumes all currencies have 2 decimal places
+    if currency in ZERO_DECIMAL_CURRENCIES:
+        return float(amount_minor)
     return amount_minor / 100
 
 
