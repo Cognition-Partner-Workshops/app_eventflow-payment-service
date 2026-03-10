@@ -1,12 +1,9 @@
-"""Tests for the payment processor.
+"""Tests for the payment processor."""
 
-NOTE: These tests only cover USD and EUR currencies.
-The JPY/KRW zero-decimal currency bug is NOT covered by these tests,
-which is why it passes CI but fails in production.
-"""
+import pytest
 
 from app.models import OrderEventData, PaymentStatus
-from app.processor import convert_to_display_amount, process_order_payment
+from app.processor import convert_to_display_amount, process_order_payment, validate_payment_amount
 
 
 class TestConvertToDisplayAmount:
@@ -24,9 +21,31 @@ class TestConvertToDisplayAmount:
         """GBP amounts should be divided by 100 to get pounds."""
         assert convert_to_display_amount(5000, "GBP") == 50.00
 
+    def test_convert_jpy_amount(self):
+        """JPY amounts should be returned as-is (zero-decimal currency)."""
+        assert convert_to_display_amount(15800, "JPY") == 15800.0
+
+    def test_convert_krw_amount(self):
+        """KRW amounts should be returned as-is (zero-decimal currency)."""
+        assert convert_to_display_amount(50000, "KRW") == 50000.0
+
     def test_convert_zero_amount(self):
         """Zero amount should convert to zero."""
         assert convert_to_display_amount(0, "USD") == 0.0
+
+
+class TestValidatePaymentAmount:
+    """Tests for payment amount validation with zero-decimal currencies."""
+
+    def test_jpy_above_threshold_passes(self):
+        """JPY payment of 15800 should pass validation (>= 500 threshold)."""
+        # Should not raise
+        validate_payment_amount(15800.0, "JPY")
+
+    def test_jpy_below_threshold_raises(self):
+        """JPY payment below minimum threshold should raise ValueError."""
+        with pytest.raises(ValueError, match="below minimum threshold"):
+            validate_payment_amount(100.0, "JPY")
 
 
 class TestProcessOrderPayment:
