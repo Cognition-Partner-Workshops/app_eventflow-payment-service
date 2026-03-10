@@ -1,12 +1,9 @@
-"""Tests for the payment processor.
+"""Tests for the payment processor."""
 
-NOTE: These tests only cover USD and EUR currencies.
-The JPY/KRW zero-decimal currency bug is NOT covered by these tests,
-which is why it passes CI but fails in production.
-"""
+import pytest
 
 from app.models import OrderEventData, PaymentStatus
-from app.processor import convert_to_display_amount, process_order_payment
+from app.processor import convert_to_display_amount, process_order_payment, validate_payment_amount
 
 
 class TestConvertToDisplayAmount:
@@ -27,6 +24,14 @@ class TestConvertToDisplayAmount:
     def test_convert_zero_amount(self):
         """Zero amount should convert to zero."""
         assert convert_to_display_amount(0, "USD") == 0.0
+
+    def test_convert_jpy_amount(self):
+        """JPY is a zero-decimal currency — amount should not be divided."""
+        assert convert_to_display_amount(12800, "JPY") == 12800.0
+
+    def test_convert_krw_amount(self):
+        """KRW is a zero-decimal currency — amount should not be divided."""
+        assert convert_to_display_amount(15000, "KRW") == 15000.0
 
 
 class TestProcessOrderPayment:
@@ -67,6 +72,44 @@ class TestProcessOrderPayment:
 
         assert payment.status == PaymentStatus.COMPLETED
         assert payment.amount_display == 9999.99
+
+    def test_process_jpy_order(self, jpy_order_event_data: OrderEventData):
+        """JPY order should be processed successfully with correct display amount."""
+        payment = process_order_payment(jpy_order_event_data)
+
+        assert payment.status == PaymentStatus.COMPLETED
+        assert payment.order_id == "order-jpy-001"
+        assert payment.currency == "JPY"
+        assert payment.amount_minor == 12800
+        assert payment.amount_display == 12800.0
+
+    def test_process_krw_order(self, krw_order_event_data: OrderEventData):
+        """KRW order should be processed successfully with correct display amount."""
+        payment = process_order_payment(krw_order_event_data)
+
+        assert payment.status == PaymentStatus.COMPLETED
+        assert payment.order_id == "order-krw-001"
+        assert payment.currency == "KRW"
+        assert payment.amount_minor == 15000
+        assert payment.amount_display == 15000.0
+
+
+class TestValidatePaymentAmount:
+    """Tests for payment amount validation."""
+
+    def test_jpy_below_threshold_raises(self):
+        """JPY amount below 500 should raise ValueError."""
+        with pytest.raises(ValueError, match="below minimum threshold"):
+            validate_payment_amount(100.0, "JPY")
+
+    def test_jpy_above_threshold_passes(self):
+        """JPY amount above 500 should not raise."""
+        validate_payment_amount(12800.0, "JPY")
+
+    def test_usd_below_threshold_raises(self):
+        """USD amount below 0.50 should raise ValueError."""
+        with pytest.raises(ValueError, match="below minimum threshold"):
+            validate_payment_amount(0.10, "USD")
 
 
 class TestHealthEndpoints:

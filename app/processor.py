@@ -2,6 +2,13 @@
 
 This module converts order amounts from minor units (cents/smallest denomination)
 to display amounts and validates the payment.
+
+Currencies have different decimal places ("minor unit exponents"):
+- Most currencies (USD, EUR, GBP) have 2 decimal places (cents)
+- Zero-decimal currencies (JPY, KRW, VND, etc.) have 0 decimal places
+- Some currencies (BHD, KWD) have 3 decimal places (fils)
+
+The conversion must use the correct exponent for each currency.
 """
 
 import logging
@@ -10,6 +17,37 @@ from dataclasses import dataclass
 from app.models import OrderEventData, PaymentRecord, PaymentStatus
 
 logger = logging.getLogger(__name__)
+
+# Number of decimal places (minor unit exponent) for each currency.
+# Zero-decimal currencies like JPY and KRW have an exponent of 0,
+# meaning the amount is already in the base unit and should NOT be divided.
+CURRENCY_DECIMAL_PLACES: dict[str, int] = {
+    "USD": 2,
+    "EUR": 2,
+    "GBP": 2,
+    "JPY": 0,
+    "KRW": 0,
+    "VND": 0,
+    "CLP": 0,
+    "PYG": 0,
+    "UGX": 0,
+    "RWF": 0,
+    "DJF": 0,
+    "GNF": 0,
+    "XOF": 0,
+    "XAF": 0,
+    "XPF": 0,
+    "KMF": 0,
+    "MGA": 0,
+    "BIF": 0,
+    "CHF": 2,
+    "CAD": 2,
+    "AUD": 2,
+    "CNY": 2,
+    "INR": 2,
+    "BHD": 3,
+    "KWD": 3,
+}
 
 # Minimum transaction thresholds in display currency units
 # These represent the minimum billable amount for each currency
@@ -36,14 +74,6 @@ class GatewayResponse:
     error: str | None = None
 
 
-# Zero-decimal currencies where the minor unit equals the base unit
-ZERO_DECIMAL_CURRENCIES: set[str] = {
-    "JPY", "KRW", "VND", "CLP", "PYG",
-    "UGX", "RWF", "DJF", "GNF", "XOF",
-    "XAF", "XPF", "KMF", "MGA", "BIF",
-}
-
-
 def convert_to_display_amount(amount_minor: int, currency: str) -> float:
     """Convert an amount from minor units to display format.
 
@@ -53,10 +83,12 @@ def convert_to_display_amount(amount_minor: int, currency: str) -> float:
 
     Returns:
         The amount in display format (e.g., dollars).
+
+    The conversion uses the currency's decimal places to determine the
+    correct divisor. Zero-decimal currencies (JPY, KRW) are not divided.
     """
-    if currency in ZERO_DECIMAL_CURRENCIES:
-        return float(amount_minor)
-    return amount_minor / 100
+    decimal_places = CURRENCY_DECIMAL_PLACES.get(currency, 2)
+    return amount_minor / (10 ** decimal_places)
 
 
 def validate_payment_amount(display_amount: float, currency: str) -> None:

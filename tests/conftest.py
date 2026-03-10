@@ -8,6 +8,44 @@ from app.models import OrderEventData
 
 
 @pytest.fixture
+def jpy_order_event_data() -> OrderEventData:
+    """An OrderCreated event payload for a JPY order."""
+    return OrderEventData(
+        order_id="order-jpy-001",
+        customer_id="cust-004",
+        currency="JPY",
+        amount=12800,
+        items=[
+            {
+                "product_id": "prod-401",
+                "name": "Mechanical Keyboard",
+                "quantity": 1,
+                "unit_price": 12800,
+            },
+        ],
+    )
+
+
+@pytest.fixture
+def krw_order_event_data() -> OrderEventData:
+    """An OrderCreated event payload for a KRW order."""
+    return OrderEventData(
+        order_id="order-krw-001",
+        customer_id="cust-005",
+        currency="KRW",
+        amount=15000,
+        items=[
+            {
+                "product_id": "prod-501",
+                "name": "Phone Case",
+                "quantity": 1,
+                "unit_price": 15000,
+            },
+        ],
+    )
+
+
+@pytest.fixture
 def client() -> TestClient:
     """Create a test client for the FastAPI application."""
     return TestClient(app)
