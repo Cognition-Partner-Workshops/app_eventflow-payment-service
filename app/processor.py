@@ -3,6 +3,9 @@
 This module converts order amounts from minor units (cents/smallest denomination)
 to display amounts and validates the payment.
 
+Pipeline:  convert_to_display_amount → validate_payment_amount
+           → process_payment_through_gateway → PaymentRecord
+
 BUG: The conversion assumes ALL currencies have 2 decimal places.
 This works for USD, EUR, GBP but FAILS for zero-decimal currencies
 like JPY and KRW where the amount is already in the base unit.
@@ -15,6 +18,10 @@ When a JPY order with amount=15800 arrives:
   - The REAL failure: the gateway validates display_amount against known price ranges
     for the currency, and 158.00 JPY is below the minimum transaction threshold
     (500 JPY), causing a validation error that is not caught → unhandled exception
+
+The ValueError propagates through consumer._process_message, which abandons
+the Service Bus message and attempts a best-effort HTTP callback to mark the
+order as failed.
 """
 
 import logging
@@ -24,8 +31,9 @@ from app.models import OrderEventData, PaymentRecord, PaymentStatus
 
 logger = logging.getLogger(__name__)
 
-# Minimum transaction thresholds in display currency units
-# These represent the minimum billable amount for each currency
+# Minimum transaction thresholds in display currency units.
+# Used by validate_payment_amount to reject unreasonably small charges.
+# Currencies not listed here fall back to 0.50 (see validate_payment_amount).
 MINIMUM_TRANSACTION_THRESHOLDS: dict[str, float] = {
     "USD": 0.50,
     "EUR": 0.50,
@@ -61,14 +69,22 @@ def convert_to_display_amount(amount_minor: int, currency: str) -> float:
 
     BUG: Always divides by 100, which is incorrect for zero-decimal
     currencies like JPY where 1 yen IS the smallest unit.
-    The correct implementation would check the currency's decimal places.
+    A correct implementation would use a per-currency exponent map
+    (e.g. ISO 4217 defines JPY exponent as 0, USD as 2).
     """
-    # BUG: This assumes all currencies have 2 decimal places
+    # BUG: This assumes all currencies have 2 decimal places.
+    # For JPY 15800 this produces 158.00 instead of 15800,
+    # which later fails the minimum threshold check (500 JPY).
     return amount_minor / 100
 
 
 def validate_payment_amount(display_amount: float, currency: str) -> None:
     """Validate that the payment amount meets minimum thresholds.
+
+    This is the function that actually surfaces the zero-decimal bug:
+    the incorrectly converted display_amount (e.g. 158.00 JPY) is
+    compared against the real-world threshold (500 JPY), raising a
+    ValueError that propagates up to the consumer.
 
     Args:
         display_amount: Amount in display format.
@@ -77,6 +93,7 @@ def validate_payment_amount(display_amount: float, currency: str) -> None:
     Raises:
         ValueError: If the amount is below the minimum threshold.
     """
+    # Fall back to 0.50 for unlisted currencies (safe for most 2-decimal currencies).
     threshold = MINIMUM_TRANSACTION_THRESHOLDS.get(currency, 0.50)
     if display_amount < threshold:
         raise ValueError(
@@ -93,6 +110,10 @@ def process_payment_through_gateway(
 
     In a real system this would call Stripe, Adyen, etc.
     For the demo, it validates the amount and returns a simulated response.
+
+    Note: validate_payment_amount raises ValueError on failure rather than
+    returning a GatewayResponse with success=False — callers must handle
+    the exception (see consumer._process_message).
 
     Args:
         display_amount: Amount in display format.
@@ -119,6 +140,12 @@ def process_order_payment(event_data: OrderEventData) -> PaymentRecord:
     """Process a payment for an incoming order event.
 
     This is the main entry point called by the Service Bus consumer.
+    Chains: currency conversion → gateway processing → PaymentRecord.
+
+    For zero-decimal currencies the conversion step produces the wrong
+    display_amount, and the gateway step raises ValueError.  That
+    exception is intentionally *not* caught here so it can propagate
+    to the consumer's error-handling logic.
 
     Args:
         event_data: The order event data from Service Bus.
@@ -152,6 +179,7 @@ def process_order_payment(event_data: OrderEventData) -> PaymentRecord:
         order_id=event_data.order_id,
     )
 
+    # Build a PaymentRecord reflecting the gateway outcome.
     if gateway_response.success:
         logger.info(
             "Payment completed for order %s (txn: %s)",
