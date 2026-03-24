@@ -1,4 +1,16 @@
-"""EventFlow Payment Service — FastAPI application entry point."""
+"""EventFlow Payment Service -- FastAPI application entry point.
+
+Sets up the FastAPI application with:
+
+- **Lifespan management**: starts the Azure Service Bus consumer thread on
+  startup and stops it gracefully on shutdown.
+- **CORS middleware**: allows cross-origin requests from any origin (for demo
+  purposes).
+- **Health endpoints**: ``/health`` (liveness) and ``/ready`` (readiness with
+  Service Bus connectivity check).
+- **Payments API**: ``/api/payments`` (list) and ``/api/payments/{payment_id}``
+  (detail) for inspecting processed payment records.
+"""
 
 import logging
 from collections.abc import AsyncIterator
@@ -26,7 +38,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Manage application startup and shutdown."""
+    """Manage application startup and shutdown.
+
+    Starts the Service Bus consumer thread when the application boots and
+    signals it to stop when the application is shutting down.
+    """
     logger.info(
         "Starting %s v%s (env=%s)",
         settings.service_name,
@@ -83,7 +99,11 @@ async def list_payments(limit: int = 50) -> list[PaymentRecord]:
 
 @app.get("/api/payments/{payment_id}", tags=["payments"], response_model=PaymentRecord)
 async def get_payment(payment_id: str) -> PaymentRecord:
-    """Get a payment record by ID."""
+    """Get a payment record by ID.
+
+    Raises:
+        HTTPException: 404 if no payment with the given ID exists.
+    """
     from fastapi import HTTPException, status
 
     record = payments.get(payment_id)

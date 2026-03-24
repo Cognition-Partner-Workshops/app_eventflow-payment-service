@@ -1,8 +1,13 @@
 """Tests for the payment processor.
 
-NOTE: These tests only cover USD and EUR currencies.
-The JPY/KRW zero-decimal currency bug is NOT covered by these tests,
-which is why it passes CI but fails in production.
+Covers currency conversion, end-to-end payment processing, and health/readiness
+endpoints.
+
+.. note::
+
+   These tests only cover USD and EUR currencies.  The JPY/KRW zero-decimal
+   currency bug is **intentionally not covered** by these tests, which is why
+   the bug passes CI but fails in production.  See the README for details.
 """
 
 from app.models import OrderEventData, PaymentStatus

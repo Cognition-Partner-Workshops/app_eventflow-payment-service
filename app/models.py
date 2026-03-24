@@ -1,4 +1,13 @@
-"""Pydantic models for payment processing."""
+"""Pydantic models for payment processing.
+
+Defines the data structures used throughout the service:
+
+- **Inbound events**: ``OrderCreatedEvent`` and ``OrderEventData`` represent the
+  JSON messages consumed from Azure Service Bus.
+- **Domain models**: ``PaymentStatus`` (enum) and ``PaymentRecord`` capture the
+  outcome of payment processing.
+- **Supporting models**: ``OrderItem`` describes a single line item within an order.
+"""
 
 import uuid
 from datetime import UTC, datetime
@@ -16,7 +25,14 @@ class PaymentStatus(str, Enum):
 
 
 class OrderItem(BaseModel):
-    """A single item from the order event."""
+    """A single line item within an order event.
+
+    Attributes:
+        product_id: Unique product identifier.
+        name: Human-readable product name.
+        quantity: Number of units ordered.
+        unit_price: Price per unit in the smallest currency denomination (e.g., cents).
+    """
 
     product_id: str
     name: str
@@ -25,7 +41,14 @@ class OrderItem(BaseModel):
 
 
 class OrderCreatedEvent(BaseModel):
-    """Inbound event from the Order Service."""
+    """Top-level envelope for an ``OrderCreated`` event from the Order Service.
+
+    Attributes:
+        event_id: Unique identifier for this event instance.
+        event_type: Event type discriminator (expected: ``OrderCreated``).
+        timestamp: ISO-8601 timestamp of when the event was produced.
+        data: Nested payload containing order details.
+    """
 
     event_id: str
     event_type: str
@@ -34,7 +57,15 @@ class OrderCreatedEvent(BaseModel):
 
 
 class OrderEventData(BaseModel):
-    """Data payload of the OrderCreated event."""
+    """Data payload nested inside an ``OrderCreatedEvent``.
+
+    Attributes:
+        order_id: Unique identifier of the order.
+        customer_id: Identifier of the customer who placed the order.
+        currency: ISO 4217 currency code (e.g., ``USD``, ``JPY``).
+        amount: Total order amount in the smallest currency unit (e.g., cents).
+        items: List of line items included in the order.
+    """
 
     order_id: str
     customer_id: str
@@ -44,7 +75,19 @@ class OrderEventData(BaseModel):
 
 
 class PaymentRecord(BaseModel):
-    """A processed payment record."""
+    """A processed payment record stored in memory and served via the REST API.
+
+    Attributes:
+        payment_id: Auto-generated UUID for the payment.
+        order_id: Identifier of the originating order.
+        customer_id: Identifier of the customer.
+        currency: ISO 4217 currency code.
+        amount_minor: Amount in the smallest currency unit (as received).
+        amount_display: Amount converted to display format (e.g., dollars).
+        status: Processing outcome -- ``pending``, ``completed``, or ``failed``.
+        processed_at: UTC timestamp of when the payment was processed.
+        error_message: Human-readable error description if the payment failed.
+    """
 
     payment_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     order_id: str

@@ -1,4 +1,9 @@
-"""Shared test fixtures for the Payment Service."""
+"""Shared pytest fixtures for the Payment Service test suite.
+
+Provides reusable fixtures including a FastAPI ``TestClient`` and sample
+``OrderEventData`` objects for USD and EUR orders.  These fixtures are
+automatically discovered by pytest and available to all test modules.
+"""
 
 import pytest
 from fastapi.testclient import TestClient

@@ -42,7 +42,13 @@ MINIMUM_TRANSACTION_THRESHOLDS: dict[str, float] = {
 
 @dataclass
 class GatewayResponse:
-    """Simulated payment gateway response."""
+    """Simulated payment gateway response.
+
+    Attributes:
+        success: Whether the gateway accepted the payment.
+        transaction_id: Unique transaction reference returned on success.
+        error: Human-readable error message returned on failure.
+    """
 
     success: bool
     transaction_id: str | None = None
@@ -118,13 +124,20 @@ def process_payment_through_gateway(
 def process_order_payment(event_data: OrderEventData) -> PaymentRecord:
     """Process a payment for an incoming order event.
 
-    This is the main entry point called by the Service Bus consumer.
+    This is the main entry point called by the Service Bus consumer.  It
+    orchestrates the full payment flow: currency conversion, gateway
+    validation, gateway processing, and record creation.
 
     Args:
         event_data: The order event data from Service Bus.
 
     Returns:
-        A PaymentRecord with the processing result.
+        A PaymentRecord with the processing result (status ``completed``
+        or ``failed``).
+
+    Raises:
+        ValueError: If the display amount is below the minimum transaction
+            threshold for the currency (this is the intentional JPY bug path).
     """
     logger.info(
         "Processing payment for order %s: %s %d",

@@ -1,4 +1,13 @@
-"""Azure Service Bus consumer for order events."""
+"""Azure Service Bus consumer for order events.
+
+Runs a background daemon thread that continuously polls an Azure Service Bus queue
+for ``OrderCreated`` messages.  Each message is deserialized, passed to the payment
+processor, and the resulting ``PaymentRecord`` is stored in an in-memory dictionary.
+After processing, an HTTP callback is sent to the Order Service to update the
+order's payment status.
+
+The consumer is started and stopped via the FastAPI lifespan context in ``main.py``.
+"""
 
 import json
 import logging
@@ -22,7 +31,14 @@ _stop_event = threading.Event()
 
 
 def _update_order_status(order_id: str, status: str) -> None:
-    """Callback to order service to update order status after payment processing."""
+    """Send a PATCH request to the Order Service to update an order's payment status.
+
+    If ``ORDER_SERVICE_URL`` is not configured, this function is a no-op.
+
+    Args:
+        order_id: The order whose status should be updated.
+        status: The new status string (e.g., ``completed`` or ``failed``).
+    """
     if not settings.order_service_url:
         logger.debug("ORDER_SERVICE_URL not set — skipping status callback")
         return
@@ -92,7 +108,14 @@ def _process_message(message_body: str) -> None:
 
 
 def _consumer_loop() -> None:
-    """Background loop that consumes messages from Service Bus."""
+    """Background loop that consumes messages from Service Bus.
+
+    Connects to Azure Service Bus using the configured connection string and
+    continuously receives messages in batches of up to 10.  Successfully
+    processed messages are completed; failed messages are abandoned so they
+    can be retried.  On connection errors the loop backs off for 10 seconds
+    before reconnecting.
+    """
     if not settings.azure_servicebus_connection_string:
         logger.warning("Service Bus connection string not set — consumer not started")
         return
