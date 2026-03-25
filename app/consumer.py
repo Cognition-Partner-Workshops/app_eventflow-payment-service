@@ -1,4 +1,13 @@
-"""Azure Service Bus consumer for order events."""
+"""Azure Service Bus consumer for order events.
+
+Runs a background daemon thread that long-polls the Service Bus queue for
+``OrderCreated`` messages.  Each message is deserialized, passed to the
+payment processor, and the resulting ``PaymentRecord`` is stored in an
+in-memory dict.  After processing, a callback is made to the order service
+to update the order's status.
+
+The consumer automatically reconnects on transient Service Bus errors.
+"""
 
 import json
 import logging
@@ -14,7 +23,7 @@ from app.processor import process_order_payment
 
 logger = logging.getLogger(__name__)
 
-# In-memory store for processed payments (demo purposes)
+# In-memory store — keyed by payment_id. Sufficient for demos.
 payments: dict[str, PaymentRecord] = {}
 
 _consumer_thread: threading.Thread | None = None
@@ -22,7 +31,12 @@ _stop_event = threading.Event()
 
 
 def _update_order_status(order_id: str, status: str) -> None:
-    """Callback to order service to update order status after payment processing."""
+    """PATCH the order service to reflect the payment outcome.
+
+    Silently logs a warning if the order service is unreachable or
+    returns a non-200 response — the payment record is still persisted
+    locally regardless.
+    """
     if not settings.order_service_url:
         logger.debug("ORDER_SERVICE_URL not set — skipping status callback")
         return
@@ -92,7 +106,13 @@ def _process_message(message_body: str) -> None:
 
 
 def _consumer_loop() -> None:
-    """Background loop that consumes messages from Service Bus."""
+    """Background loop that long-polls the Service Bus queue.
+
+    Messages are received in batches of up to 10, processed one at a time,
+    and completed (removed from the queue) on success or abandoned on failure
+    so they can be retried.  On transient connection errors the loop waits
+    10 seconds before reconnecting.
+    """
     if not settings.azure_servicebus_connection_string:
         logger.warning("Service Bus connection string not set — consumer not started")
         return
@@ -140,7 +160,7 @@ def _consumer_loop() -> None:
 
 
 def start_consumer() -> None:
-    """Start the background consumer thread."""
+    """Start the background consumer thread (daemon, named ``sb-consumer``)."""
     global _consumer_thread
     if _consumer_thread is not None and _consumer_thread.is_alive():
         logger.warning("Consumer thread already running")
@@ -153,7 +173,7 @@ def start_consumer() -> None:
 
 
 def stop_consumer() -> None:
-    """Stop the background consumer thread."""
+    """Signal the consumer thread to stop and wait up to 15 s for it to exit."""
     global _consumer_thread
     _stop_event.set()
     if _consumer_thread is not None:
@@ -163,7 +183,10 @@ def stop_consumer() -> None:
 
 
 async def check_servicebus_health() -> bool:
-    """Check if Service Bus connection is healthy."""
+    """Verify Service Bus connectivity by opening and immediately closing a receiver.
+
+    Returns ``True`` if the connection succeeds, ``False`` otherwise.
+    """
     if not settings.azure_servicebus_connection_string:
         return False
     try:

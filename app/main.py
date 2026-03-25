@@ -1,4 +1,9 @@
-"""EventFlow Payment Service — FastAPI application entry point."""
+"""EventFlow Payment Service — FastAPI application entry point.
+
+This service consumes ``OrderCreated`` events from Azure Service Bus,
+processes payments through a simulated gateway, and exposes a REST API
+for querying payment records.
+"""
 
 import logging
 from collections.abc import AsyncIterator
@@ -16,7 +21,7 @@ from app.consumer import (
 )
 from app.models import PaymentRecord
 
-# Configure structured logging
+# Configure structured logging — level is driven by the LOG_LEVEL env var.
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -26,7 +31,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Manage application startup and shutdown."""
+    """Manage application startup and shutdown.
+
+    On startup: logs service metadata and starts the Service Bus consumer thread.
+    On shutdown: signals the consumer thread to stop and waits for it to finish.
+    """
     logger.info(
         "Starting %s v%s (env=%s)",
         settings.service_name,
@@ -75,7 +84,11 @@ async def readiness_check() -> dict[str, str | bool]:
 
 @app.get("/api/payments", tags=["payments"], response_model=list[PaymentRecord])
 async def list_payments(limit: int = 50) -> list[PaymentRecord]:
-    """List processed payments."""
+    """List processed payments, sorted newest-first.
+
+    Args:
+        limit: Maximum number of records to return (default 50).
+    """
     records = list(payments.values())
     records.sort(key=lambda p: p.processed_at, reverse=True)
     return records[:limit]
@@ -83,7 +96,10 @@ async def list_payments(limit: int = 50) -> list[PaymentRecord]:
 
 @app.get("/api/payments/{payment_id}", tags=["payments"], response_model=PaymentRecord)
 async def get_payment(payment_id: str) -> PaymentRecord:
-    """Get a payment record by ID."""
+    """Get a single payment record by its unique ID.
+
+    Returns 404 if no payment with the given ID exists.
+    """
     from fastapi import HTTPException, status
 
     record = payments.get(payment_id)

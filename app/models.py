@@ -1,4 +1,9 @@
-"""Pydantic models for payment processing."""
+"""Pydantic models for payment processing.
+
+Monetary amounts arrive from the order service as integers in the smallest
+currency unit (cents for USD, yen for JPY).  The payment processor converts
+them to a ``float`` display amount for gateway validation.
+"""
 
 import uuid
 from datetime import UTC, datetime
@@ -16,7 +21,14 @@ class PaymentStatus(str, Enum):
 
 
 class OrderItem(BaseModel):
-    """A single item from the order event."""
+    """A single item from the order event.
+
+    Attributes:
+        product_id: Product identifier.
+        name: Human-readable product name.
+        quantity: Number of units ordered.
+        unit_price: Price per unit in the smallest currency unit.
+    """
 
     product_id: str
     name: str
@@ -25,7 +37,11 @@ class OrderItem(BaseModel):
 
 
 class OrderCreatedEvent(BaseModel):
-    """Inbound event from the Order Service."""
+    """Inbound event consumed from the Azure Service Bus queue.
+
+    This mirrors the ``OrderCreatedEvent`` schema published by the order
+    service so both sides stay in sync.
+    """
 
     event_id: str
     event_type: str
@@ -34,7 +50,15 @@ class OrderCreatedEvent(BaseModel):
 
 
 class OrderEventData(BaseModel):
-    """Data payload of the OrderCreated event."""
+    """Data payload of the OrderCreated event.
+
+    Attributes:
+        order_id: Unique identifier for the order.
+        customer_id: Identifier of the customer who placed the order.
+        currency: ISO 4217 currency code.
+        amount: Total order amount in the smallest currency unit.
+        items: Line items included in the order.
+    """
 
     order_id: str
     customer_id: str
@@ -44,7 +68,19 @@ class OrderEventData(BaseModel):
 
 
 class PaymentRecord(BaseModel):
-    """A processed payment record."""
+    """A processed payment record stored in the in-memory ledger.
+
+    Attributes:
+        payment_id: Auto-generated UUID for this payment.
+        order_id: The order this payment corresponds to.
+        customer_id: Customer who placed the order.
+        currency: ISO 4217 currency code.
+        amount_minor: Total in the smallest currency unit (e.g. cents).
+        amount_display: Total converted to display format (e.g. dollars).
+        status: Current processing status (pending, completed, failed).
+        processed_at: UTC timestamp of when the payment was processed.
+        error_message: Human-readable error detail when status is FAILED.
+    """
 
     payment_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     order_id: str

@@ -24,8 +24,9 @@ from app.models import OrderEventData, PaymentRecord, PaymentStatus
 
 logger = logging.getLogger(__name__)
 
-# Minimum transaction thresholds in display currency units
-# These represent the minimum billable amount for each currency
+# Minimum transaction thresholds in display currency units.
+# Amounts below these values are rejected by the simulated gateway.
+# Real gateways (Stripe, Adyen) enforce similar per-currency minimums.
 MINIMUM_TRANSACTION_THRESHOLDS: dict[str, float] = {
     "USD": 0.50,
     "EUR": 0.50,
@@ -42,7 +43,13 @@ MINIMUM_TRANSACTION_THRESHOLDS: dict[str, float] = {
 
 @dataclass
 class GatewayResponse:
-    """Simulated payment gateway response."""
+    """Simulated payment gateway response.
+
+    Attributes:
+        success: Whether the payment was accepted.
+        transaction_id: Gateway-assigned ID on success, None on failure.
+        error: Human-readable error description on failure.
+    """
 
     success: bool
     transaction_id: str | None = None
