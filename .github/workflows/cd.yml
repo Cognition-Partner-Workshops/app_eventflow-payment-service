@@ -1,8 +1,7 @@
 name: CD — Payment Service
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   AZURE_CONTAINER_REGISTRY: ${{ vars.ACR_LOGIN_SERVER }}
