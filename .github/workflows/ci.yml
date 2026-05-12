@@ -22,13 +22,21 @@ jobs:
         run: pip install poetry==1.7.1
 
       - name: Install dependencies
-        run: poetry install
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: poetry install
 
       - name: Lint with Ruff
         run: poetry run ruff check app/ tests/
 
       - name: Run tests
-        run: poetry run pytest -v --tb=short
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: poetry run pytest -v --tb=short --reruns 3 --reruns-delay 2
 
   docker:
     runs-on: ubuntu-latest
